@@ -24,10 +24,10 @@ Python dependencies are pinned to exact versions in `requirements.txt`. Migratio
 ## AWS Design
 
 **Target architecture in 3 to 5 lines:**    
-Run the FastAPI API, workers and web frontend on ECS Fargate in `eu-west-2` behind an ALB, with CloudFront in front of the web application. Keep Redis on ElastiCache, PostgreSQL managed externally as stated in the brief, and the vector database on EC2 initially. Use separate production and staging services, with staging scaled down or stopped outside working hours.
+Run the FastAPI API, workers and web frontend on ECS Fargate in `eu-west-2`, with the ALB in front of the API and CloudFront in front of the web app. Keep Redis on ElastiCache, PostgreSQL external as stated in the brief, and the vector database on EC2 initially; scale staging down outside working hours.
 
 **Networking and security: VPC and subnets, IAM, secrets, how CI authenticates to AWS:**  
-Place the ALB in public subnets and ECS tasks, Redis and internal EC2 workloads in private subnets across two AZs. Use least-privilege IAM task roles, AWS Secrets Manager for application secrets, security groups to restrict service-to-service access, and GitHub Actions OIDC for short-lived AWS credentials instead of long-lived access keys.
+Use public subnets for the ALB and private subnets across two AZs for ECS tasks, Redis and internal EC2 workloads. Use least-privilege IAM, Secrets Manager, restrictive security groups, and GitHub Actions OIDC for short-lived AWS credentials.
 
 **Deploying without downtime, and how you would roll back:**  
 Use ECS rolling deployments with health checks so new tasks must become healthy before old tasks are removed. Tag images with the commit SHA; if health checks or monitoring fail, redeploy the previous known good image/task definition.
@@ -41,7 +41,7 @@ Use ECS rolling deployments with health checks so new tasks must become healthy 
 
 **Top 3 savings: change, estimated £/month, and the risk each introduces:**  
 1. Schedule/scale down staging outside working hours: reduce ~£260 to ~£90, saving ~£170/month. Risk: slower access for urgent out-of-hours testing.  
-2. Right-size ECS API/workers and add autoscaling: reduce API/workers from ~£400 to ~£76/month, saving ~£324/month. Risk: under-sizing could increase latency or queue backlog, so scale on CPU and queue depth.  
+2. Right-size to a baseline of 2 API tasks at 0.5 vCPU/1 GB and 1 worker at 0.5 vCPU/1 GB, with autoscaling for peak load. Using the current bill proportionally, estimated API/worker cost falls from ~£400 to ~£76/month, saving ~£324/month.          Risk:under-sizing could increase latency or queue backlog.  
 3. Change CloudWatch logging from DEBUG to INFO and apply retention: reduce ~£95 to ~£25/month, saving ~£70/month. Risk: less verbose logs may make deep debugging harder.
 
 **New projected AWS total and cost per customer (show the sum):**  
@@ -53,10 +53,10 @@ I would keep production redundancy across multiple AZs and the ALB because relia
 ## Judgement
 
 **How this scales to 100 customers:**  
-Keep the API horizontally scalable behind the ALB, scale workers based on queue depth, and monitor Redis, latency and error rate as customer volume grows. Reassess Redis and vector database sizing using real utilisation before scaling them up.
+Scale the API horizontally behind the ALB and scale workers on queue depth. Reassess Redis and vector database sizing from real utilisation as customer volume grows.
 
 **The biggest production risk in the current setup, and your first fix:**  
-The biggest immediate risk is unsafe delivery: long-lived AWS credentials in GitHub, manual migrations, and weak monitoring create a high chance of deployment or operational failure. My first fix would be to make deployments repeatable and safer with OIDC, automated migration ordering, health checks and CI smoke tests.
+The biggest immediate risk is unsafe delivery: long-lived AWS credentials, manual migrations and weak monitoring. My first fix is OIDC, automated migration ordering, health checks and CI smoke tests.
 
 **One thing kept intentionally simple, and what you would do with 3 more hours:**  
-I kept the application stub and migration intentionally minimal because the assessment focuses on DevOps rather than business logic. With 3 more hours I would add an architecture diagram, improve observability with structured metrics/logging, and test failure scenarios such as Redis or Postgres becoming unavailable.
+I kept the application stub and migration minimal because the assessment focuses on DevOps rather than business logic. With 3 more hours I would add an architecture diagram, improve observability and test Redis/Postgres failure scenarios.
