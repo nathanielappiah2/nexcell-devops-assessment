@@ -34,7 +34,11 @@ else
 fi
 
 TEST_JOB="smoke-test-$(date +%s)"
-
+if docker compose exec -T redis redis-cli LPUSH jobs "$TEST_JOB" > /dev/null; then
+  pass "Worker test job queued"
+else
+  fail "Could not enqueue worker test job"
+fi
 WORKER_OK=0
 
 for attempt in {1..10}; do
