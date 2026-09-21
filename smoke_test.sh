@@ -35,16 +35,21 @@ fi
 
 TEST_JOB="smoke-test-$(date +%s)"
 
-if docker compose exec -T redis redis-cli LPUSH jobs "$TEST_JOB" > /dev/null; then
-  sleep 2
+WORKER_OK=0
 
-  if docker compose logs worker | grep -q "$TEST_JOB"; then
-    pass "Worker consumed Redis job"
-  else
-    fail "Worker did not consume Redis job"
+for attempt in {1..10}; do
+  if docker compose logs worker 2>&1 | grep -q "$TEST_JOB"; then
+    WORKER_OK=1
+    break
   fi
+
+  sleep 1
+done
+
+if [ "$WORKER_OK" -eq 1 ]; then
+  pass "Worker consumed Redis job"
 else
-  fail "Could not enqueue worker test job"
+  fail "Worker did not consume Redis job"
 fi
 
 if [ "$FAILED" -ne 0 ]; then
