@@ -13,6 +13,6 @@ while True:
 
     if job:
         _, payload = job
-        print(f"Processed job: {payload.decode()}")
+        print(f"Processed job: {payload.decode()}", flush=True)
 
     time.sleep(1)
