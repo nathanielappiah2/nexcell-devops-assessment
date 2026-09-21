@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build production image
+        run: docker build -t nexcell-devops-assessment:${{ github.sha }} .
+
+      - name: Start application stack
+        run: docker compose up -d --build
+
+      - name: Wait for services
+        run: sleep 15
+
+      - name: Run smoke tests
+        run: bash smoke_test.sh
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Stop application stack
+        if: always()
+        run: docker compose down -v
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+
+    if: >
+      github.ref == 'refs/heads/main' &&
+      vars.AWS_ROLE_ARN != '' &&
+      vars.ECS_CLUSTER != '' &&
+      vars.ECS_SERVICE != ''
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to AWS using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: eu-west-2
+
+      - name: Deploy to ECS
+        run: |
+          echo "Deploying commit ${{ github.sha }} to ECS"
+          aws ecs update-service \
+            --cluster "${{ vars.ECS_CLUSTER }}" \
+            --service "${{ vars.ECS_SERVICE }}" \
+            --force-new-deployment
